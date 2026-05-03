@@ -1,0 +1,54 @@
+# ── MIDMS — docker-compose.yml ──────────────────────────────
+# Runs the full stack locally with a single: docker compose up
+#
+# Services:
+#   backend   → FastAPI + GEE engine  (port 8000)
+#   frontend  → React dev server      (port 3000)  [add later]
+#
+# GEE Auth:
+#   Drop your service account key JSON at ./secrets/gee-key.json
+#   It is volume-mounted into the container — NEVER committed to git
+
+version: "3.9"
+
+services:
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GEE_SERVICE_ACCOUNT=${GEE_SERVICE_ACCOUNT}
+      - GEE_KEY_FILE=/run/secrets/gee_key
+    volumes:
+      # Mount GEE credentials (read-only)
+      - ./secrets/gee-key.json:/run/secrets/gee_key:ro
+      # Hot-reload: mount source so code changes reflect without rebuild
+      - ./midms_gee_engine.py:/app/midms_gee_engine.py
+      - ./main.py:/app/main.py
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    # For development with hot-reload, use this instead:
+    # command: npm run dev -- --host 0.0.0.0
+    # image: node:20-alpine
+    # working_dir: /app
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
